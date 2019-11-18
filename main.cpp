@@ -36,6 +36,7 @@ void *printFloor(void* floorinfo){
 		sem_wait(&floor_mutex);
 		floor_info *finfo = (floor_info*)floorinfo;
 		int* cur_floor = (int*)(finfo->shm_current_floor);
+		cout<<"[Control Panel] ";
 		if(finfo->floor==4)
 			cout<<"Elevator";
 		else
