@@ -54,10 +54,13 @@ void *changeUserChoice(void* inputinfo){
 		if(*input_mode==2)
 		  continue;
 		key=cin.get();
-		if(key=='1'||key=='2'||key=='3'){
+		if(key=='1'||key=='2'||key=='3'||key=='4'){
 			*user_choice = key-'0';
 			*input_mode=2;
-			cout<<"[CHANGE] user now choose floor "<<*user_choice<<" control panel"<<endl;
+			if(*user_choice == 4)
+			  cout<<"[CHANGE] user now choose to control elevator"<<endl;
+			else
+				cout<<"[CHANGE] user now choose floor "<<*user_choice<<" control panel"<<endl;
 		}
 	}
 	return NULL;
@@ -73,13 +76,26 @@ void *callElevator(void* panelinfo){
 		  continue;
 		if(*user_choice == floor)	//user choose this floor's control panel
 		{
-			char cmd = cin.get();
-			if(cmd=='w'||cmd=='s'){
-				cout<<"this is in floor "<<floor<<" and this thread shows user choice is: "<<*user_choice<<endl;
-				cout<<"[CALL] Floor "<<floor<<" calls the elevator!"<<endl;
-				*input_mode=1;
+			if(floor==4)	//user controls elevator
+			{
+				char cmd = cin.get();
+				if(cmd == '1'||cmd=='2'||cmd=='3'){
+					int f = cmd-'0';
+					cout<<"[PRESS] User in elevator presses "<<f<<" floor button!"<<endl;
+					*input_mode=1;
+				}
+			}
+			else			//user controls floor control panel
+			{
+				char cmd = cin.get();
+				if(cmd=='w'||cmd=='s'){
+					cout<<"this is in floor "<<floor<<" and this thread shows user choice is: "<<*user_choice<<endl;
+					cout<<"[CALL] Floor "<<floor<<" calls the elevator!"<<endl;
+					*input_mode=1;
+				}
 			}
 		}
+
 	}
 	return NULL;
 }
@@ -237,6 +253,8 @@ int main(){
 	pid_t p4 = fork();		//elevator control panel process	
 	if(p4==0){
 		int* current_floor = (int*)shmat(shm_id,0,0);
+		int* user_choice = (int*)shmat(shm_id2,0,0);
+		int* input_mode = (int*)shmat(shm_id3,0,0);
 		//create a new thread to print current elevator position every 3 seconds
 		pthread_t print_thread;
 		//pack a struct for thread arguments
@@ -250,7 +268,20 @@ int main(){
 		}
 		else
 		  cout<<"create print thread success!"<<endl;
-		int* user_choice = (int*)shmat(shm_id2,0,0);
+		pthread_t call_elevator_thread;
+		panel_info e_info;
+		e_info.floor=4;
+		e_info.shm_user_choice=user_choice;
+		e_info.input_mode=input_mode;
+		int call_elevator_thread_id = pthread_create(&call_elevator_thread,NULL,callElevator,(void*)(&e_info));
+		if(call_elevator_thread_id!=0){
+		  cerr<<"create call elevator thread failed in floor 1"<<endl;
+		  cerr<<"Error Number: "<<call_elevator_thread_id<<endl;
+		}
+		else
+		  cout<<"create call elevator thread success!"<<endl;
+
+
 		void* ret_val;
 		//wait for print thread over (never)
 		pthread_join(print_thread,&ret_val);
