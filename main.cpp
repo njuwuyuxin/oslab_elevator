@@ -8,6 +8,8 @@
 #include <semaphore.h>
 using namespace std;
 
+enum ElevatorState {MOVE_UP,MOVE_DOWN,OPENNING,CLOSING,IDLE};
+
 sem_t floor_mutex;
 
 struct floor_info{
@@ -19,6 +21,7 @@ struct panel_info{
 	int floor;		//which floor's control panel
 	int* shm_user_choice;	//user current choose which floor's control panel (a share memory address)
 	int* input_mode;	//share memory address
+	int* next_floor;	//elevator goes next floor (share memory address)
 };
 
 struct input_info{
@@ -71,6 +74,7 @@ void *callElevator(void* panelinfo){
 	int floor = pinfo->floor;
 	int* user_choice = pinfo->shm_user_choice;
 	int* input_mode = pinfo->input_mode;
+	int* next_floor = pinfo->next_floor;
 	while(1){
 		if(*input_mode==1)
 		  continue;
@@ -82,6 +86,7 @@ void *callElevator(void* panelinfo){
 				if(cmd == '1'||cmd=='2'||cmd=='3'){
 					int f = cmd-'0';
 					cout<<"[PRESS] User in elevator presses "<<f<<" floor button!"<<endl;
+					*next_floor = f;
 					*input_mode=1;
 				}
 			}
@@ -91,6 +96,7 @@ void *callElevator(void* panelinfo){
 				if(cmd=='w'||cmd=='s'){
 					cout<<"this is in floor "<<floor<<" and this thread shows user choice is: "<<*user_choice<<endl;
 					cout<<"[CALL] Floor "<<floor<<" calls the elevator!"<<endl;
+					*next_floor = floor;
 					*input_mode=1;
 				}
 			}
@@ -118,6 +124,10 @@ int main(){
 	int* input_mode = (int*)shmat(shm_id3,0,0);
 	*input_mode = 1;		//1 = choose which floor, 2 = choose up or down
 	
+	int shm_id4 = shmget(IPC_PRIVATE,1,IPC_CREAT | 0666);	//which floor that elevator go next
+	int* next_floor = (int*)shmat(shm_id4,0,0);
+	*next_floor = *current_floor;		
+
 	//create a thread to receive user choose which floor's control panel to use
 	pthread_t get_key_thread;
 	input_info inputinfo;
@@ -141,6 +151,7 @@ int main(){
 		int* current_floor = (int*)shmat(shm_id,0,0);
 		int* user_choice = (int*)shmat(shm_id2,0,0);
 		int* input_mode = (int*)shmat(shm_id3,0,0);
+		int* next_floor = (int*)shmat(shm_id4,0,0);
 
 		//create a new thread to print current elevator position every 3 seconds
 		pthread_t print_thread;
@@ -162,6 +173,7 @@ int main(){
 		p1_info.floor=1;
 		p1_info.shm_user_choice=user_choice;
 		p1_info.input_mode=input_mode;
+		p1_info.next_floor=next_floor;
 		int call_elevator_thread_id = pthread_create(&call_elevator_thread,NULL,callElevator,(void*)(&p1_info));
 		if(call_elevator_thread_id!=0){
 		  cerr<<"create call elevator thread failed in floor 1"<<endl;
@@ -181,7 +193,9 @@ int main(){
 	pid_t p2 = fork();		//floor2 process
 	if(p2==0){
 		int* current_floor = (int*)shmat(shm_id,0,0);
+		int* user_choice = (int*)shmat(shm_id2,0,0);
 		int* input_mode = (int*)shmat(shm_id3,0,0);
+		int* next_floor = (int*)shmat(shm_id4,0,0);
 		//create a new thread to print current elevator position every 3 seconds
 		pthread_t print_thread;
 		//pack a struct for thread arguments
@@ -195,13 +209,13 @@ int main(){
 		}
 		else
 		  cout<<"create print thread success!"<<endl;
-		int* user_choice = (int*)shmat(shm_id2,0,0);
 		//create a new thread to handle call elevator request every floor
 		pthread_t call_elevator_thread;
 		panel_info p2_info;
 		p2_info.floor=2;
 		p2_info.shm_user_choice=user_choice;
 		p2_info.input_mode=input_mode;
+		p2_info.next_floor=next_floor;
 		int call_elevator_thread_id = pthread_create(&call_elevator_thread,NULL,callElevator,(void*)(&p2_info));
 		if(call_elevator_thread_id!=0){
 		  cerr<<"create call elevator thread failed in floor 2"<<endl;
@@ -217,7 +231,9 @@ int main(){
 	pid_t p3 = fork();		//floor3 process
 	if(p3==0){
 		int* current_floor = (int*)shmat(shm_id,0,0);
+		int* user_choice = (int*)shmat(shm_id2,0,0);
 		int* input_mode = (int*)shmat(shm_id3,0,0);
+		int* next_floor = (int*)shmat(shm_id4,0,0);
 		//create a new thread to print current elevator position every 3 seconds
 		pthread_t print_thread;
 		//pack a struct for thread arguments
@@ -231,13 +247,13 @@ int main(){
 		}
 		else
 		  cout<<"create print thread success!"<<endl;
-		int* user_choice = (int*)shmat(shm_id2,0,0);
 		//create a new thread to handle call elevator request every floor
 		pthread_t call_elevator_thread;
 		panel_info p3_info;
 		p3_info.floor=3;
 		p3_info.shm_user_choice=user_choice;
 		p3_info.input_mode=input_mode;
+		p3_info.next_floor=next_floor;
 		int call_elevator_thread_id = pthread_create(&call_elevator_thread,NULL,callElevator,(void*)(&p3_info));
 		if(call_elevator_thread_id!=0){
 		  cerr<<"create call elevator thread failed in floor 3"<<endl;
@@ -255,6 +271,7 @@ int main(){
 		int* current_floor = (int*)shmat(shm_id,0,0);
 		int* user_choice = (int*)shmat(shm_id2,0,0);
 		int* input_mode = (int*)shmat(shm_id3,0,0);
+		int* next_floor = (int*)shmat(shm_id4,0,0);
 		//create a new thread to print current elevator position every 3 seconds
 		pthread_t print_thread;
 		//pack a struct for thread arguments
@@ -273,6 +290,7 @@ int main(){
 		e_info.floor=4;
 		e_info.shm_user_choice=user_choice;
 		e_info.input_mode=input_mode;
+		e_info.next_floor=next_floor;
 		int call_elevator_thread_id = pthread_create(&call_elevator_thread,NULL,callElevator,(void*)(&e_info));
 		if(call_elevator_thread_id!=0){
 		  cerr<<"create call elevator thread failed in floor 1"<<endl;
@@ -290,18 +308,40 @@ int main(){
 	pid_t p5 = fork();		//elevator it self process	
 	if(p5==0){
 		cout<<"This is elevator process"<<endl;
+		enum ElevatorState ElevatorStatus = IDLE;	//initial
+
 		int* current_floor = (int*)shmat(shm_id,0,0);
 		int* user_choice = (int*)shmat(shm_id2,0,0);
-		//sem_wait(&floor_mutex);
-		//cout<<"Elevator control panel: Elevator is at "<<*current_floor<<" floor"<<endl;
-		//sem_post(&floor_mutex);
+		int* next_floor = (int*)shmat(shm_id4,0,0);
+		while(1){
+			if(*current_floor!=*next_floor & ElevatorStatus == IDLE){
+				int last_next_floor = *next_floor;
+				if(*current_floor<last_next_floor){
+					ElevatorStatus = MOVE_UP;
+					cout<<"[Elevator Move] Elevator is moving up!"<<endl;
+					sleep(last_next_floor-*current_floor);
+				}
+				else{
+					ElevatorStatus = MOVE_DOWN;
+					cout<<"[Elevator Move] Elevator is moving down!"<<endl;
+					sleep(*current_floor-last_next_floor);
+				}
+				cout<<"[Elevator] Elevator move finished!"<<endl;
+				*current_floor = last_next_floor;
+				ElevatorStatus = OPENNING;
+				cout<<"[Elevator] Elevator is opening the door"<<endl;
+				sleep(0.5);
+				ElevatorStatus = CLOSING;
+				cout<<"[Elevator] Elevator is closing the door"<<endl;
+				sleep(0.5);
+				ElevatorStatus = IDLE;
+				cout<<"[Elevator] Elevator now IDLE"<<endl;
+				
+			}
+		}
 		return 0;
 	}
 	
-	while(1){
-		cout<<"User now choose "<<*user_choice<<" floor's control panel"<<endl;
-		sleep(1);
-	}
 	void* ret;
 	pthread_join(get_key_thread,&ret);
 	return 0;
